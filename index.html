@@ -80,6 +80,10 @@
     <dialog id="editDialog" class="edit-dialog">
       <form id="editForm" method="dialog">
         <h2 id="editTitle">Filament</h2>
+        <div class="catalog">
+          <input id="fSearch" type="search" placeholder="Im Katalog suchen, z. B. „silk lila“" autocomplete="off" aria-label="Im Katalog suchen" />
+          <div id="fResults" class="results"></div>
+        </div>
         <div class="grid">
           <label>Marke<input id="fBrand" list="brandList" autocomplete="off" /></label>
           <label>Material<input id="fMaterial" list="materialList" autocomplete="off" placeholder="z. B. PLA Basic" /></label>

@@ -3,6 +3,7 @@
  * shop, a bit of JSON, a plain product name or just a number), so this only pre-fills the form for a
  * code seen for the first time; whatever is saved there is what the code means from then on.
  */
+import { isBambuBarcode } from './catalog';
 import type { Product } from './inventory';
 
 /** Material names, most specific first, so "PLA Silk+" wins over "PLA". */
@@ -196,7 +197,7 @@ export function guessDetails(code: string): Partial<Product> {
   }
 
   if (!out.brand) {
-    if (/bambu/i.test(text)) out.brand = 'Bambu Lab';
+    if (/bambu/i.test(text) || isBambuBarcode(code)) out.brand = 'Bambu Lab';
     else {
       const b = BRANDS.find((name) => lower.includes(name.toLowerCase()));
       if (b) out.brand = b;

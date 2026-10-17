@@ -22,6 +22,25 @@ verwalten: QR-Code der Spule scannen, Bestand sehen, leere Spulen ausbuchen.
   Bild bleibt; gleiche Spulen nacheinander zeigen zählt jede einzeln.
 - Jede Aktion lässt sich rückgängig machen. Spulen ohne QR-Code legst du mit „Spule ohne Code“ an.
 
+## Barcodes erkennen
+
+Rolle kennt rund 5 600 Barcodes (EAN) von Filamentkartons aus 41 Marken, darunter rund 250 von
+Bambu Lab. Beim Scannen eines bekannten Kartons stehen Marke, Material, Farbe und Farbton sofort
+fest; Sorten, die vorher als „unbekannt“ eingescannt wurden, werden beim Öffnen ergänzt. Für
+Spulen ohne Karton findet die Suche im Bearbeiten-Dialog jede Bambu-Farbe (auch mit deutschen
+Farbwörtern, z. B. „silk lila“).
+
+Die Daten stammen aus der [Open Filament Database](https://github.com/OpenFilamentCollective/open-filament-database)
+(MIT-Lizenz, © OpenFilamentCollective). Aktualisieren:
+
+```sh
+git clone --depth 1 https://github.com/OpenFilamentCollective/open-filament-database /tmp/ofd
+npm run catalog -- /tmp/ofd
+```
+
+Ein Barcode, den die Tabelle nicht kennt, wird wie bisher einmal von Hand beschrieben und danach
+erkannt.
+
 ## Wo die Daten liegen
 
 Ohne weitere Einrichtung bleibt der Bestand nur im Browser des Geräts (localStorage). „Sicherung

@@ -1,5 +1,6 @@
 import './style.css';
 import { startCamera, type CameraScanner } from './camera';
+import { detailsOf, loadCatalog, type Catalog, type CatalogEntry } from './catalog';
 import { signal } from './feedback';
 import { BRANDS, MATERIALS, guessDetails } from './guess';
 import {
@@ -49,6 +50,7 @@ let filterFamily = '';
 const expanded = new Set<string>();
 let camera: CameraScanner | null = null;
 let syncUi: SyncUi | null = null;
+let catalog: Catalog | null = null;
 
 interface Undo {
   label: string;
@@ -201,7 +203,10 @@ function handleScan(raw: string): void {
   }
   if (mode === 'add') {
     const isNew = !inv.products[code];
-    const spool = addSpool(inv, code, isNew ? guessDetails(code) : undefined);
+    const known = isNew ? catalog?.lookup(code) : null;
+    // Scanned before the table was loaded: it fills the kind in once it is there.
+    if (isNew && !catalog) setTimeout(loadAndFill, 0);
+    const spool = addSpool(inv, code, isNew ? { ...guessDetails(code), ...(known ? detailsOf(known) : {}) } : undefined);
     const p = inv.products[code];
     pushUndo(`${productLabel(p)} eingelagert`, () => {
       removeSpoolById(inv, spool.id);
@@ -479,8 +484,10 @@ function openEdit(code: string, create = false): void {
   // Colors already used are offered first, then the common ones.
   const used = [...new Set(Object.values(inv.products).map((x) => x.color).filter(Boolean))];
   fill('colorList', [...used, ...['Schwarz', 'Weiß', 'Grau', 'Rot', 'Blau', 'Grün', 'Gelb', 'Orange'].filter((c) => !used.includes(c))]);
+  fSearch.value = '';
+  fResults.replaceChildren();
   dialog.showModal();
-  (p.material ? f.color : f.material).focus();
+  (p.material ? f.color : fSearch).focus();
 }
 
 f.hex.addEventListener('input', () => {
@@ -492,6 +499,48 @@ $('fHexClear').addEventListener('click', () => {
   f.hex.classList.add('unset');
 });
 $('fCancel').addEventListener('click', () => dialog.close());
+
+// Catalog search: pick brand, material and color in one go.
+const fSearch = $<HTMLInputElement>('fSearch');
+const fResults = $('fResults');
+function pickFromCatalog(e: CatalogEntry): void {
+  f.brand.value = e.brand;
+  f.material.value = e.material;
+  f.color.value = e.color;
+  if (e.hex) {
+    f.hex.value = e.hex;
+    f.hex.classList.remove('unset');
+    if (editing) editing.hexSet = true;
+  }
+  if (e.weight) f.weight.value = String(e.weight);
+  fSearch.value = '';
+  fResults.replaceChildren();
+}
+fSearch.addEventListener('input', async () => {
+  const query = fSearch.value;
+  const cat = await loadCatalog();
+  if (query !== fSearch.value) return;
+  const hits = cat.search(query, 12);
+  fResults.replaceChildren(
+    ...hits.map((e) => {
+      const b = el(
+        'button',
+        { type: 'button', class: 'result' },
+        swatch({ ...emptyProduct(''), hex: e.hex }),
+        el('span', {}, el('strong', { text: `${e.material} · ${e.color}` }), el('small', { class: 'muted', text: e.brand })),
+      );
+      b.addEventListener('click', () => pickFromCatalog(e));
+      return b;
+    }),
+  );
+  if (query.trim() && hits.length === 0) fResults.append(el('p', { class: 'muted', text: 'Nichts gefunden – trag die Angaben unten selbst ein.' }));
+});
+// Enter in the search box picks the first hit instead of saving the form.
+fSearch.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  (fResults.querySelector('button.result') as HTMLButtonElement | null)?.click();
+});
 
 $<HTMLFormElement>('editForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -609,3 +658,28 @@ if (location.hash.includes('verbinden=')) {
 }
 
 render();
+
+// Known barcodes: fill in kinds scanned before the catalog was there (or loaded).
+function fillFromCatalog(c: Catalog): void {
+  catalog = c;
+  let filled = 0;
+  for (const p of Object.values(inv.products)) {
+    if (isDescribed(p)) continue;
+    const hit = c.lookup(p.code);
+    if (!hit) continue;
+    setProduct(inv, { ...p, ...detailsOf(hit), note: p.note || detailsOf(hit).note || '' });
+    filled++;
+  }
+  if (filled) {
+    commit();
+    toast(filled === 1 ? '1 Sorte am Barcode erkannt und ergänzt.' : `${filled} Sorten am Barcode erkannt und ergänzt.`, 6000);
+  }
+}
+function loadAndFill(): void {
+  loadCatalog()
+    .then(fillFromCatalog)
+    .catch(() => {
+      // Without the table, codes are simply learned by hand.
+    });
+}
+loadAndFill();

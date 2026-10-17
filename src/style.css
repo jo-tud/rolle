@@ -741,3 +741,39 @@ input[type='password'] {
   height: auto;
   border-radius: 8px;
 }
+
+/* Catalog search in the edit dialog */
+.catalog {
+  margin-bottom: 12px;
+}
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+.results p {
+  margin: 4px 2px;
+  font-size: 0.9rem;
+}
+.result {
+  justify-content: flex-start;
+  text-align: left;
+  gap: 10px;
+  padding: 6px 10px;
+  min-height: 44px;
+}
+.result span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.result strong {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.result small {
+  font-size: 0.8rem;
+}
