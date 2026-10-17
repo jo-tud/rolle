@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="robots" content="noindex" />
+    <meta name="theme-color" content="#1d1f24" />
+    <title>Rolle</title>
+    <meta name="description" content="Filamentspulen per QR-Code einscannen, Bestand sehen, leere Spulen ausbuchen." />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="manifest.webmanifest" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>Rolle</h1>
+        <p id="summary" class="muted">Noch leer</p>
+      </div>
+      <button id="soundBtn" class="icon-btn" type="button" aria-pressed="true" title="Ton an/aus">🔊</button>
+    </header>
+
+    <section class="scan" aria-label="Scannen">
+      <div class="mode" role="group" aria-label="Was ein Scan bewirkt">
+        <button id="modeAdd" type="button" class="mode-btn add" aria-pressed="true">
+          <strong>＋ Einlagern</strong><span>neue Spule</span>
+        </button>
+        <button id="modeRemove" type="button" class="mode-btn remove" aria-pressed="false">
+          <strong>− Ausbuchen</strong><span>Spule ist leer</span>
+        </button>
+      </div>
+
+      <div class="scan-row">
+        <button id="cameraBtn" type="button" class="primary">📷 Kamera-Scan</button>
+        <form id="manualForm" class="manual" autocomplete="off">
+          <input id="manualInput" type="text" inputmode="text" placeholder="Code eingeben/einfügen" aria-label="Code von Hand" />
+          <button type="submit">OK</button>
+        </form>
+      </div>
+      <p id="scannerHint" class="hint">⌨️ Hand-Scanner bereit – einfach losscannen, kein Feld antippen nötig.</p>
+
+      <div id="cameraBox" class="camera" hidden>
+        <video id="video" playsinline muted></video>
+        <div class="frame" aria-hidden="true"></div>
+        <button id="cameraStop" type="button" class="camera-stop">Kamera aus</button>
+      </div>
+
+      <div id="lastScan" class="last" hidden></div>
+    </section>
+
+    <button id="missing" type="button" class="banner" hidden></button>
+
+    <section class="stock" aria-label="Bestand">
+      <div class="filters">
+        <input id="search" type="search" placeholder="Suchen: Material, Farbe, Marke …" aria-label="Suchen" />
+        <div id="chips" class="chips"></div>
+      </div>
+      <div id="groups" class="groups"></div>
+      <p id="empty" class="empty">Noch keine Filamente. Scanne den QR-Code einer Spule – mit dem Hand-Scanner oder der Kamera.</p>
+    </section>
+
+    <footer class="tools">
+      <button id="addManual" type="button">＋ Spule ohne Code</button>
+      <button id="exportBtn" type="button">Sicherung speichern</button>
+      <label class="btn">Sicherung laden<input id="importInput" type="file" accept="application/json,.json" hidden /></label>
+      <details class="help">
+        <summary>Hilfe</summary>
+        <ul>
+          <li><b>Einlagern:</b> Jeder Scan legt eine Spule an. Ein Code, den die App noch nicht kennt, wird als Sorte „ohne Details“ angelegt – Material und Farbe trägst du einmal ein, danach erkennt die App jede weitere Spule mit diesem Code sofort.</li>
+          <li><b>Ausbuchen:</b> Leere Spule scannen – eine Spule dieser Sorte verschwindet (zuerst eine angebrochene). Oder in der Liste auf „−“ tippen.</li>
+          <li><b>Hand-Scanner</b> (USB oder Bluetooth) arbeiten wie eine Tastatur. Stelle sie auf das Tastaturlayout deines Geräts (meist Deutsch) und auf „Enter“ nach jedem Scan.</li>
+          <li><b>Kamera:</b> Code ins Bild halten. Derselbe Code zählt erst wieder, wenn er kurz aus dem Bild war – so kannst du mehrere gleiche Spulen nacheinander zeigen.</li>
+          <li>Die Daten bleiben nur in diesem Browser auf diesem Gerät. Mit „Sicherung speichern“ bekommst du eine Datei, die du auf einem anderen Gerät wieder laden kannst.</li>
+        </ul>
+      </details>
+    </footer>
+
+    <dialog id="editDialog" class="edit-dialog">
+      <form id="editForm" method="dialog">
+        <h2 id="editTitle">Filament</h2>
+        <div class="grid">
+          <label>Marke<input id="fBrand" list="brandList" autocomplete="off" /></label>
+          <label>Material<input id="fMaterial" list="materialList" autocomplete="off" placeholder="z. B. PLA Basic" /></label>
+          <label>Farbe<input id="fColor" list="colorList" autocomplete="off" placeholder="z. B. Schwarz" /></label>
+          <label class="hex">Farbton<span><input id="fHex" type="color" /><button id="fHexClear" type="button" class="link">keiner</button></span></label>
+          <label>Gewicht (g)<input id="fWeight" type="number" min="0" step="50" inputmode="numeric" placeholder="1000" /></label>
+          <label id="fCountWrap">Anzahl Spulen<input id="fCount" type="number" min="1" max="99" value="1" inputmode="numeric" /></label>
+          <label class="wide">Notiz<input id="fNote" autocomplete="off" placeholder="z. B. AMS 1, Regal oben, Druckeinstellungen" /></label>
+        </div>
+        <p class="code muted">Code: <code id="fCode"></code></p>
+        <div class="actions">
+          <button id="fDelete" type="button" class="link danger-link">Sorte löschen</button>
+          <span class="spacer"></span>
+          <button value="cancel" type="button" id="fCancel">Abbrechen</button>
+          <button value="save" type="submit" class="primary">Speichern</button>
+        </div>
+      </form>
+    </dialog>
+
+    <datalist id="brandList"></datalist>
+    <datalist id="materialList"></datalist>
+    <datalist id="colorList"></datalist>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
