@@ -1,4 +1,5 @@
 import './style.css';
+import { parseNfcScan, processNfcScan } from './nfc';
 import { startCamera, type CameraScanner } from './camera';
 import { detailsOf, loadCatalog, type Catalog, type CatalogEntry } from './catalog';
 import { signal } from './feedback';
@@ -148,7 +149,7 @@ function toast(message: string, ms = 4000, action?: { label: string; run: () => 
 
 const lastScan = $('lastScan');
 
-type LastKind = 'add' | 'new' | 'remove' | 'missing';
+type LastKind = 'add' | 'new' | 'remove' | 'missing' | 'duplicate';
 
 function showLast(kind: LastKind, code: string): void {
   const p = inv.products[code];
@@ -160,6 +161,7 @@ function showLast(kind: LastKind, code: string): void {
     new: isDescribed(p) ? `Neue Sorte erkannt · ${spoolWord(n)}` : 'Neuer Code – bitte Details eintragen',
     remove: n ? `Ausgebucht · noch ${spoolWord(n)}` : 'Ausgebucht · letzte Spule dieser Sorte',
     missing: 'Nicht im Bestand – nichts ausgebucht',
+    duplicate: 'Diese Spule ist schon im Bestand',
   }[kind];
 
   const actions = el('div', { class: 'last-actions' });
@@ -168,7 +170,7 @@ function showLast(kind: LastKind, code: string): void {
     details.addEventListener('click', () => openEdit(code));
     actions.append(details);
   }
-  if (kind !== 'missing') {
+  if (kind !== 'missing' && kind !== 'duplicate') {
     const back = el('button', { type: 'button', text: 'Rückgängig' });
     back.addEventListener('click', undo);
     actions.append(back);
@@ -228,6 +230,35 @@ function handleScan(raw: string): void {
     showLast('remove', code);
   }
 }
+
+// Serialize bridge events so catalog loading cannot race two scans of the same spool.
+let nfcQueue = Promise.resolve();
+window.addEventListener('rolle:nfc', (event) => {
+  const scan = parseNfcScan((event as CustomEvent<unknown>).detail);
+  if (!scan) { toast('NFC-Daten konnten nicht gelesen werden'); return; }
+  const scanMode = mode;
+  nfcQueue = nfcQueue.then(async () => {
+    try { catalog ??= await loadCatalog(); } catch { /* Tag details remain usable offline. */ }
+    const result = processNfcScan(inv, scan, scanMode, catalog);
+    if (result.kind === 'duplicate' || result.kind === 'missing') {
+      signal('error', sound);
+      showLast(result.kind, result.code);
+      return;
+    }
+    const { code, spool } = result;
+    if (result.kind === 'add') {
+      pushUndo(`${productLabel(inv.products[code])} eingelagert`, () => {
+        removeSpoolById(inv, spool.id);
+        if (result.isNew && countOf(inv, code) === 0) deleteProduct(inv, code);
+      });
+    } else {
+      pushUndo(`${productLabel(inv.products[code] ?? emptyProduct(code))} ausgebucht`, () => restoreSpool(inv, spool));
+    }
+    commit();
+    signal(result.kind, sound);
+    showLast(result.kind, code);
+  }).catch(() => toast('NFC-Scan konnte nicht verarbeitet werden'));
+});
 
 function setMode(next: 'add' | 'remove'): void {
   mode = next;
@@ -683,3 +714,5 @@ function loadAndFill(): void {
     });
 }
 loadAndFill();
+
+(window as Window & { RolleNfcReady?: boolean }).RolleNfcReady = true;

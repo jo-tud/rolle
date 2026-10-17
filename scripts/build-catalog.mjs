@@ -30,6 +30,7 @@ export function normalizeGtin(raw) {
 const brands = [];
 const variants = [];
 const codes = {};
+const articles = {};
 let conflicts = 0;
 let invalid = 0;
 
@@ -70,6 +71,10 @@ for (const brandDir of dirs(join(root, 'data')).sort()) {
             continue;
           }
           codes[code] = entry;
+          if (isBambu && s.article_number) {
+            const article = String(s.article_number);
+            (articles[article] ??= []).push(code);
+          }
         }
       }
     }
@@ -82,9 +87,32 @@ try {
 } catch {
   // Not a git checkout.
 }
+// Optional independently licensed crosswalk: [{variantId, colorRgba, articleNumber}].
+// Variant IDs alone are ambiguous; require exact RGBA and unambiguous weight/EAN.
+const rfid = {};
+const ambiguous = new Set();
+if (process.argv[3]) {
+  const rows = read(process.argv[3]);
+  if (!Array.isArray(rows)) throw new Error('RFID crosswalk must be an array');
+  for (const row of rows) {
+    if (!/^[A-Z0-9-]{1,8}$/.test(row.variantId) || !/^#[0-9a-f]{8}$/i.test(row.colorRgba)) {
+      throw new Error('Invalid RFID crosswalk row');
+    }
+    for (const code of articles[String(row.articleNumber)] ?? []) {
+      const key = `${row.variantId}|${row.colorRgba.toLowerCase()}|${codes[code][1]}`;
+      // Multiple package EANs for the same variant choose a stable canonical EAN.
+      if (rfid[key] && codes[rfid[key]][0] !== codes[code][0]) ambiguous.add(key);
+      else rfid[key] = [rfid[key], code].filter(Boolean).sort()[0];
+    }
+  }
+  for (const key of ambiguous) delete rfid[key];
+}
+for (const list of Object.values(articles)) list.sort();
 const out = {
   source: 'Open Filament Database, https://github.com/OpenFilamentCollective/open-filament-database (MIT)',
   commit,
+  articles,
+  rfid,
   brands,
   variants,
   codes,

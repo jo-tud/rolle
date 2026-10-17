@@ -22,6 +22,8 @@ export interface Product {
 }
 
 export interface Spool {
+  /** Shared identity of both RFID tags on a spool. */
+  tag?: string;
   id: string;
   code: string;
   /** When the spool was added, ms since epoch. */
@@ -195,7 +197,8 @@ export function parseInventory(raw: unknown): Inventory | null {
     if (!id || ids.has(id)) id = newId();
     ids.add(id);
     const added = time(s.added, Date.now());
-    inv.spools.push({ id, code, added, opened: s.opened === true, updated: time(s.updated, added) });
+    const tag = str(s.tag).trim();
+    inv.spools.push({ id, code, added, opened: s.opened === true, updated: time(s.updated, added), ...(tag ? { tag } : {}) });
     if (!inv.products[code]) inv.products[code] = emptyProduct(code);
   }
   if (r.deleted && typeof r.deleted === 'object') {

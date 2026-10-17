@@ -6,6 +6,9 @@
 import type { Product } from './inventory';
 
 export interface CatalogData {
+  /** Verified variant + RGBA + weight → EAN. Empty without a licensed crosswalk. */
+  rfid?: Record<string, string>;
+  articles?: Record<string, string[]>;
   brands: string[];
   /** [brand index, material, color name, #rrggbb or ''] */
   variants: [number, string, string, string][];
@@ -55,6 +58,12 @@ export class Catalog {
     const gtin = normalizeGtin(code);
     const hit = gtin ? this.data.codes[gtin] : undefined;
     return hit ? this.entry(hit[0], hit[1], hit[2] === 1) : null;
+  }
+
+  lookupRfid(variant: string, rgba: string, weight: number): { code: string; entry: CatalogEntry } | null {
+    const code = this.data.rfid?.[`${variant}|${rgba.toLowerCase()}|${weight}`];
+    const entry = code ? this.lookup(code) : null;
+    return code && entry ? { code, entry } : null;
   }
 
   /** Colors matching every word of the query, Bambu Lab first. */

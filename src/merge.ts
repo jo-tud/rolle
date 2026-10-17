@@ -52,7 +52,7 @@ export function merge(a: Inventory, b: Inventory, now = Date.now()): Inventory {
 export function canonical(inv: Inventory): string {
   const sortObj = <T>(o: Record<string, T>) => Object.fromEntries(Object.entries(o).sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0)));
   const product = (p: Product) => [p.code, p.brand, p.material, p.color, p.hex, p.weight, p.note, p.updated];
-  const spool = (s: Spool) => [s.id, s.code, s.added, s.opened, s.updated];
+  const spool = (s: Spool) => [s.id, s.code, s.added, s.opened, s.updated, s.tag ?? null];
   return JSON.stringify({
     products: Object.values(sortObj(inv.products)).map(product),
     spools: [...inv.spools].sort((x, y) => (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)).map(spool),

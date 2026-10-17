@@ -1,0 +1,46 @@
+name: Android APK
+on:
+  push:
+    branches: ['**']
+    tags: ['android-v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+        working-directory: android
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Rolle-NFC-debug
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Android-test-results
+          path: android/app/build/test-results/
+  release:
+    if: startsWith(github.ref, 'refs/tags/android-v')
+    needs: android
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: Rolle-NFC-debug
+      - name: Attach sideload APK to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" app-debug.apk --repo "$GITHUB_REPOSITORY" --title "Rolle NFC $GITHUB_REF_NAME" --notes "Test-APK zum Sideloaden. Debug-signiert; bei einem Wechsel des Signaturschlüssels ist eine Neuinstallation erforderlich. Vorher Bestand sichern."
