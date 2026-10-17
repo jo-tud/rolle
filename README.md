@@ -22,8 +22,33 @@ verwalten: QR-Code der Spule scannen, Bestand sehen, leere Spulen ausbuchen.
   Bild bleibt; gleiche Spulen nacheinander zeigen zählt jede einzeln.
 - Jede Aktion lässt sich rückgängig machen. Spulen ohne QR-Code legst du mit „Spule ohne Code“ an.
 
-Die Daten bleiben im Browser des Geräts (localStorage). „Sicherung speichern“ lädt eine JSON-Datei
-herunter, die du auf einem anderen Gerät mit „Sicherung laden“ wieder einspielst.
+## Wo die Daten liegen
+
+Ohne weitere Einrichtung bleibt der Bestand nur im Browser des Geräts (localStorage). „Sicherung
+speichern“ lädt eine JSON-Datei herunter, „Sicherung laden“ spielt sie wieder ein (zusammengeführt
+mit dem, was schon da ist).
+
+### Mehrere Geräte abgleichen (☁)
+
+Rolle kann den Bestand zwischen Handy, Tablet und PC abgleichen, ohne eigenen Server und ohne neues
+Konto – über einen **geheimen Gist in deinem GitHub-Konto**:
+
+- **Ende-zu-Ende verschlüsselt:** Der Bestand wird im Browser mit AES-256-GCM verschlüsselt. Der
+  Schlüssel entsteht aus deinem Kennwort (PBKDF2-SHA256, 600 000 Runden). Im Gist liegt nur
+  unlesbarer Text; GitHub und jeder, der den Gist findet, sieht nichts vom Inhalt.
+- **Einrichten:** ☁ antippen, über den Link einen GitHub-Zugangsschlüssel (classic, nur Häkchen
+  „gist“) erstellen, einfügen, Kennwort festlegen.
+- **Weitere Geräte:** Auf einem eingerichteten Gerät ☁ → „Weiteres Gerät verbinden“. Den QR-Code
+  auf dem neuen Gerät in Rolle scannen (☁ → „Code scannen“) und das Kennwort eingeben. Der Code
+  enthält den Zugangsschlüssel, aber nicht das Kennwort. Ohne Code geht es auch: Zugangsschlüssel
+  erstellen und Kennwort eingeben – Rolle findet den Gist selbst.
+- **Gleichzeitige Änderungen gehen nicht verloren:** Jede Spule und Sorte trägt einen Zeitstempel,
+  Ausbuchungen hinterlassen einen Vermerk. Beim Abgleich werden beide Stände zusammengeführt; was
+  auf dem einen Gerät eingelagert und auf dem anderen ausgebucht wurde, landet richtig.
+- Abgeglichen wird nach jeder Änderung, beim Öffnen und jede Minute, solange Rolle offen ist.
+  Offline gesammelte Änderungen gehen beim nächsten Mal hoch.
+- Auf den Geräten liegen der Zugangsschlüssel und der aus dem Kennwort berechnete Schlüssel, nie
+  das Kennwort selbst. **Ohne Kennwort ist der Bestand nicht wiederherstellbar.**
 
 ## Entwicklung
 

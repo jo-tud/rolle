@@ -6,6 +6,7 @@ import {
   STORAGE_KEY,
   addSpool,
   countOf,
+  deleteProduct,
   emptyProduct,
   groups,
   isDescribed,
@@ -14,12 +15,18 @@ import {
   productLabel,
   removeOneSpool,
   removeSpoolById,
+  restoreProduct,
+  restoreSpool,
   saveInventory,
   searchText,
+  setOpened,
+  setProduct,
   type Inventory,
   type Product,
   type Spool,
 } from './inventory';
+import { merge } from './merge';
+import { initSync, type SyncUi } from './syncUi';
 import { listenForScanner } from './wedge';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -41,6 +48,7 @@ let filterText = '';
 let filterFamily = '';
 const expanded = new Set<string>();
 let camera: CameraScanner | null = null;
+let syncUi: SyncUi | null = null;
 
 interface Undo {
   label: string;
@@ -64,7 +72,13 @@ function undo(): void {
 
 let warnedStorage = false;
 let askedPersist = false;
+/** Saves a local change, shows it and passes it on to the other devices. */
 function commit(): void {
+  persist();
+  syncUi?.changed();
+}
+
+function persist(): void {
   const ok = saveInventory(storage(), inv);
   if (!ok && !warnedStorage) {
     warnedStorage = true;
@@ -180,13 +194,18 @@ function showLast(kind: LastKind, code: string): void {
 function handleScan(raw: string): void {
   const code = raw.replace(/[\r\n]+$/g, '').trim();
   if (!code) return;
+  // The code for connecting another device is no spool.
+  if (syncUi?.handlePairing(code)) {
+    stopCamera();
+    return;
+  }
   if (mode === 'add') {
     const isNew = !inv.products[code];
     const spool = addSpool(inv, code, isNew ? guessDetails(code) : undefined);
     const p = inv.products[code];
     pushUndo(`${productLabel(p)} eingelagert`, () => {
       removeSpoolById(inv, spool.id);
-      if (isNew && countOf(inv, code) === 0) delete inv.products[code];
+      if (isNew && countOf(inv, code) === 0) deleteProduct(inv, code);
     });
     commit();
     signal(isNew ? 'new' : 'add', sound);
@@ -198,7 +217,7 @@ function handleScan(raw: string): void {
       showLast('missing', code);
       return;
     }
-    pushUndo(`${productLabel(inv.products[code] ?? emptyProduct(code))} ausgebucht`, () => inv.spools.push(removed));
+    pushUndo(`${productLabel(inv.products[code] ?? emptyProduct(code))} ausgebucht`, () => restoreSpool(inv, removed));
     commit();
     signal('remove', sound);
     showLast('remove', code);
@@ -224,7 +243,7 @@ listenForScanner(
     void hint.offsetWidth;
     hint.classList.add('flash');
   },
-  () => !dialog.open,
+  () => !document.querySelector('dialog[open]'),
 );
 
 $<HTMLFormElement>('manualForm').addEventListener('submit', (e) => {
@@ -304,7 +323,7 @@ function spoolRow(s: Spool, i: number): HTMLElement {
   const opened = el('input', { type: 'checkbox' });
   opened.checked = s.opened;
   opened.addEventListener('change', () => {
-    s.opened = opened.checked;
+    setOpened(s, opened.checked);
     commit();
   });
   const out = el('button', { type: 'button', class: 'small', text: 'Ausbuchen' });
@@ -312,7 +331,7 @@ function spoolRow(s: Spool, i: number): HTMLElement {
     const removed = removeSpoolById(inv, s.id);
     if (!removed) return;
     const label = productLabel(inv.products[s.code] ?? emptyProduct(s.code));
-    pushUndo(`${label} ausgebucht`, () => inv.spools.push(removed));
+    pushUndo(`${label} ausgebucht`, () => restoreSpool(inv, removed));
     commit();
     toast(`${label} ausgebucht`, 5000, { label: 'Rückgängig', run: undo });
   });
@@ -355,7 +374,7 @@ function groupCard(product: Product, spools: Spool[]): HTMLElement {
   minus.addEventListener('click', () => {
     const removed = removeOneSpool(inv, code);
     if (!removed) return;
-    pushUndo(`${productLabel(product)} ausgebucht`, () => inv.spools.push(removed));
+    pushUndo(`${productLabel(product)} ausgebucht`, () => restoreSpool(inv, removed));
     commit();
     toast(`${productLabel(product)} ausgebucht`, 5000, { label: 'Rückgängig', run: undo });
   });
@@ -488,8 +507,9 @@ $<HTMLFormElement>('editForm').addEventListener('submit', (e) => {
     hex: hexSet ? f.hex.value.toLowerCase() : '',
     weight: Number.isFinite(weight) && weight > 0 ? weight : 0,
     note: f.note.value.trim(),
+    updated: Date.now(),
   };
-  inv.products[code] = next;
+  setProduct(inv, next);
   const added: string[] = [];
   if (create) {
     const n = Math.min(99, Math.max(1, Math.round(Number(f.count.value)) || 1));
@@ -497,8 +517,8 @@ $<HTMLFormElement>('editForm').addEventListener('submit', (e) => {
   }
   pushUndo(create ? `${productLabel(next)} angelegt` : `${productLabel(next)} geändert`, () => {
     for (const id of added) removeSpoolById(inv, id);
-    if (before) inv.products[code] = before;
-    else delete inv.products[code];
+    if (before) setProduct(inv, before);
+    else deleteProduct(inv, code);
   });
   dialog.close();
   commit();
@@ -509,15 +529,10 @@ $('fDelete').addEventListener('click', () => {
   if (!editing) return;
   const { code } = editing;
   const p = inv.products[code];
-  const spools = inv.spools.filter((s) => s.code === code);
-  if (!confirm(`„${productLabel(p)}${p.color ? ' ' + p.color : ''}“ mit ${spoolWord(spools.length)} löschen? Die App vergisst dann auch den Code.`)) return;
-  inv.spools = inv.spools.filter((s) => s.code !== code);
-  delete inv.products[code];
+  if (!confirm(`„${productLabel(p)}${p.color ? ' ' + p.color : ''}“ mit ${spoolWord(countOf(inv, code))} löschen? Die App vergisst dann auch den Code.`)) return;
+  const removed = deleteProduct(inv, code);
   expanded.delete(code);
-  pushUndo(`${productLabel(p)} gelöscht`, () => {
-    inv.products[code] = p;
-    inv.spools.push(...spools);
-  });
+  pushUndo(`${productLabel(p)} gelöscht`, () => restoreProduct(inv, removed.product, removed.spools));
   dialog.close();
   commit();
   toast(`${productLabel(p)} gelöscht`, 6000, { label: 'Rückgängig', run: undo });
@@ -554,12 +569,12 @@ $<HTMLInputElement>('importInput').addEventListener('change', async (e) => {
     toast('Die Datei ist keine Sicherung dieser App.', 6000);
     return;
   }
-  if (!confirm(`Aktuellen Bestand (${spoolWord(inv.spools.length)}) durch die Sicherung (${spoolWord(next.spools.length)}) ersetzen?`)) return;
-  const before = inv;
-  inv = next;
-  pushUndo('Sicherung geladen', () => (inv = before));
+  // Merging keeps whatever was added since the backup; what was removed since stays removed.
+  if (!confirm(`Sicherung mit ${spoolWord(next.spools.length)} einspielen? Spulen aus der Sicherung, die hier fehlen, kommen dazu.`)) return;
+  inv = merge(inv, next);
+  undoStack.length = 0;
   commit();
-  toast('Sicherung geladen', 5000, { label: 'Rückgängig', run: undo });
+  toast('Sicherung eingespielt', 5000);
 });
 
 // Another tab of the app changed the stock.
@@ -569,5 +584,28 @@ window.addEventListener('storage', (e) => {
   undoStack.length = 0;
   render();
 });
+
+syncUi = initSync({
+  local: {
+    get: () => inv,
+    apply(merged) {
+      inv = merge(inv, merged);
+      persist();
+    },
+  },
+  getInventory: () => inv,
+  toast,
+  scanPairing() {
+    if (!camera) void toggleCamera();
+    toast('Halte den Code vom anderen Gerät in die Kamera.', 6000);
+  },
+});
+
+// Opened through a pairing link: take it in and drop it from the address bar.
+if (location.hash.includes('verbinden=')) {
+  const link = location.hash;
+  history.replaceState(null, '', location.pathname + location.search);
+  syncUi.handlePairing(link);
+}
 
 render();

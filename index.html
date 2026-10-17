@@ -16,7 +16,10 @@
         <h1>Rolle</h1>
         <p id="summary" class="muted">Noch leer</p>
       </div>
-      <button id="soundBtn" class="icon-btn" type="button" aria-pressed="true" title="Ton an/aus">🔊</button>
+      <div class="top-actions">
+        <button id="syncBtn" class="icon-btn sync-btn" type="button" title="Mit anderen Geräten abgleichen" aria-label="Geräte abgleichen">☁</button>
+        <button id="soundBtn" class="icon-btn" type="button" aria-pressed="true" title="Ton an/aus">🔊</button>
+      </div>
     </header>
 
     <section class="scan" aria-label="Scannen">
@@ -69,7 +72,7 @@
           <li><b>Ausbuchen:</b> Leere Spule scannen – eine Spule dieser Sorte verschwindet (zuerst eine angebrochene). Oder in der Liste auf „−“ tippen.</li>
           <li><b>Hand-Scanner</b> (USB oder Bluetooth) arbeiten wie eine Tastatur. Stelle sie auf das Tastaturlayout deines Geräts (meist Deutsch) und auf „Enter“ nach jedem Scan.</li>
           <li><b>Kamera:</b> Code ins Bild halten. Derselbe Code zählt erst wieder, wenn er kurz aus dem Bild war – so kannst du mehrere gleiche Spulen nacheinander zeigen.</li>
-          <li>Die Daten bleiben nur in diesem Browser auf diesem Gerät. Mit „Sicherung speichern“ bekommst du eine Datei, die du auf einem anderen Gerät wieder laden kannst.</li>
+          <li>Die Daten liegen in diesem Browser. Über ☁ gleichst du sie verschlüsselt mit deinen anderen Geräten ab (über einen geheimen Gist in deinem GitHub-Konto). „Sicherung speichern“ lädt zusätzlich eine Datei herunter.</li>
         </ul>
       </details>
     </footer>
@@ -94,6 +97,81 @@
           <button value="save" type="submit" class="primary">Speichern</button>
         </div>
       </form>
+    </dialog>
+
+    <dialog id="syncDialog" class="edit-dialog sync-dialog">
+      <div class="dialog-head">
+        <h2>Geräte abgleichen</h2>
+        <button id="syncClose" type="button" class="icon-btn" aria-label="Schließen">✕</button>
+      </div>
+
+      <section id="syncSetup">
+        <p>
+          Rolle legt deinen Bestand <b>verschlüsselt</b> in einem geheimen Gist in deinem GitHub-Konto ab. Lesen kann
+          ihn nur, wer dein Kennwort kennt – auch GitHub nicht.
+        </p>
+        <div class="box">
+          <strong>Auf einem anderen Gerät schon eingerichtet?</strong>
+          <p class="muted">Dort auf ☁ und „Weiteres Gerät verbinden“ tippen, dann den Code hier scannen.</p>
+          <button id="syncScan" type="button">📷 Code scannen</button>
+        </div>
+        <form id="syncTokenForm" class="box" autocomplete="off">
+          <strong>Zum ersten Mal einrichten</strong>
+          <ol class="steps">
+            <li>
+              <a id="tokenLink" target="_blank" rel="noopener">Zugangsschlüssel bei GitHub erstellen ↗</a>
+              <span class="muted">Das Häkchen „gist“ ist schon gesetzt. Ablaufdatum wählen (z. B. „No expiration“), unten „Generate token“ tippen und den Schlüssel kopieren.</span>
+            </li>
+            <li>
+              <label>Schlüssel hier einfügen<input id="syncToken" type="password" spellcheck="false" autocapitalize="off" placeholder="ghp_…" required /></label>
+            </li>
+          </ol>
+          <p id="syncTokenError" class="error" hidden></p>
+          <div class="actions"><button type="submit" class="primary" id="syncTokenGo">Weiter</button></div>
+        </form>
+      </section>
+
+      <form id="syncPasswordForm" hidden>
+        <p id="syncPasswordIntro"></p>
+        <div class="fields">
+          <label>Kennwort<input id="syncPassword" type="password" required /></label>
+          <label id="syncPassword2Wrap">Kennwort wiederholen<input id="syncPassword2" type="password" autocomplete="new-password" /></label>
+        </div>
+        <p id="syncPasswordError" class="error" hidden></p>
+        <div class="actions">
+          <button type="button" id="syncBack">Zurück</button>
+          <button type="submit" class="primary" id="syncConnect">Verbinden</button>
+        </div>
+      </form>
+
+      <section id="syncOn" hidden>
+        <p id="syncStatus" class="sync-status"></p>
+        <form id="syncFix" class="box" hidden autocomplete="off">
+          <p id="syncFixText"></p>
+          <div id="syncFixToken">
+            <a id="tokenLink2" target="_blank" rel="noopener">Neuen Zugangsschlüssel erstellen ↗</a>
+            <label>Neuen Schlüssel einfügen<input id="syncNewToken" type="password" spellcheck="false" autocapitalize="off" placeholder="ghp_…" /></label>
+          </div>
+          <div class="actions"><button type="submit" class="primary" id="syncFixGo">Übernehmen</button></div>
+        </form>
+        <div class="actions start">
+          <button id="syncNow" type="button">⟳ Jetzt abgleichen</button>
+          <button id="syncPair" type="button">Weiteres Gerät verbinden</button>
+        </div>
+        <div id="pairBox" class="box pair" hidden>
+          <div id="pairQr" class="qr" role="img" aria-label="QR-Code zum Verbinden"></div>
+          <p>Auf dem anderen Gerät Rolle öffnen, auf ☁ und „Code scannen“ tippen und diesen Code scannen. Danach fragt es nach dem Kennwort.</p>
+          <p class="warn">Der Code enthält deinen GitHub-Zugangsschlüssel (nicht das Kennwort). Zeig ihn niemandem sonst.</p>
+          <button id="pairCopy" type="button">Link kopieren</button>
+        </div>
+        <details class="help">
+          <summary>Mehr</summary>
+          <p>Das Kennwort selbst bleibt nirgends gespeichert, auf den Geräten liegt nur der daraus berechnete Schlüssel. Ohne Kennwort lässt sich der Bestand nicht wiederherstellen – auch nicht von GitHub.</p>
+          <p>Ein neues Gerät ohne Code einrichten: Zugangsschlüssel bei GitHub erstellen, einfügen, Kennwort eingeben. Rolle findet die Ablage selbst.</p>
+          <p><a id="gistLink" target="_blank" rel="noopener">Ablage bei GitHub ansehen ↗</a></p>
+          <button id="syncOff" type="button" class="link danger-link">Dieses Gerät trennen</button>
+        </details>
+      </section>
     </dialog>
 
     <datalist id="brandList"></datalist>
